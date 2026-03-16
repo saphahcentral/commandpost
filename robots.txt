@@ -1,0 +1,5 @@
+User-agent: *
+Disallow: /
+
+# ELIYAH COMMAND POST - ACCESS RESTRICTED
+# Unauthorized crawling is prohibited.
