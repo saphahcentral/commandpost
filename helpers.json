@@ -38,13 +38,31 @@
         "secret_key_ref": "MICHAELA2"
       },
       {
+        "name": "GABRIEL",
+        "role": "The Ambassodor",
+        "assistant_id": "GABRIEL",
+        "assigned_email": "duckbusiness2024a@gmail.com",
+        "primary_repo": "domg6027",
+        "capabilities": ["markdown_formatting", "guardian_tagging", "library_sync"],
+        "secret_key_ref": "GABRIEL"
+      },
+      {
         "name": "EVE",
         "role": "The Merchant",
         "assistant_id": "EVE",
         "assigned_email": "swd.website786@gmail.com",
         "primary_repo": "soar2024",
         "capabilities": ["inventory_update", "book_formatting", "shop_api_sync"],
-        "secret_key_ref": "EVE"
+        "secret_key_ref": "EVE1"
+      },
+      {
+        "name": "EVE",
+        "role": "The Merchant",
+        "assistant_id": "EVE",
+        "assigned_email": "swd.website786@gmail.com",
+        "primary_repo": "scss6027",
+        "capabilities": ["inventory_update", "book_formatting", "shop_api_sync"],
+        "secret_key_ref": "EVE2"
       }
     ]
   }
