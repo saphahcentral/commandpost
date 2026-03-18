@@ -13,7 +13,7 @@
       {
         "name": "HESTER",
         "role": "The Chronicler",
-        "assistant_id": "MICHAELA",
+        "assistant_id": "HESTER",
         "assigned_email": "shlane1966@gmail.com",
         "primary_repo": "saphahcentral",
         "capabilities": ["all"],
