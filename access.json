@@ -1,0 +1,44 @@
+{
+  "command_center": {
+    "name": "Eliyah",
+    "description": "Commander-In-Chief of AI workflows",
+    "security_level": "OATH-FIREWALL-ACTIVE",
+    "users": [
+      {
+        "email": "bessingerbackup2024@gmail.com",
+        "access_level": "SUPER_ADMIN",
+        "role": "The Warden",
+        "description": "Full system access, credential management, and master overrides.",
+        "permitted_repos": ["*"]
+      },
+      {
+        "email": "mc.grobbelaar786@gmail.com",
+        "access_level": "ADMIN",
+        "role": "The Architect",
+        "description": "Maintains system structure, repo integrity, and core logic.",
+        "permitted_repos": ["*"]
+      },
+      {
+        "email": "duckbusiness2024a@gmail.com",
+        "access_level": "ADMIN",
+        "role": "Vault Warden",
+        "description": "Guardian of the Obsidian Codex vault.",
+        "permitted_repos": ["vault", "dom6027-library", "inbox"]
+      },
+            {
+        "email": "lastwarners2024@gmail.com",
+        "access_level": "ADMIN",
+        "role": "Ambassador for YHVH",
+        "description": "Daily ministry, as well training and warning.",
+        "permitted_repos": ["domg6027", "inbox"]
+      },
+            {
+        "email": "swd.website786@gmail.com",
+        "access_level": "ADMIN",
+        "role": "Support Coordinator",
+        "description": "Support service, e-books.",
+        "permitted_repos": ["scss6027", "soar2024", "inbox"]
+      }
+    ]
+  }
+}
