@@ -61,7 +61,7 @@
         "assistant_id": "EVE",
         "assigned_email": "swd.website786@gmail.com",
         "primary_repo": "scss6027",
-        "capabilities": ["inventory_update", "book_formatting", "shop_api_sync"],
+        "capabilities": ["support"],
         "secret_key_ref": "EVE2"
       }
     ]
