@@ -1,0 +1,42 @@
+{
+  "ai_agency": {
+    "provider": "Google AI Studio (Gemini)",
+    "active_assistants": [
+      {
+        "name": "RAFEEK",
+        "assistant_id": "RAFEEK",
+        "assigned_email": "bessingerback2024@gmail.com",
+        "primary_repo": "saphahcentral",
+        "capabilities": ["all"],
+        "system_instruction_version": "1.0.0"
+      },
+      {
+        "name": "MICHAELA",
+        "role": "The Chronicler",
+        "assistant_id": "MICHAELA",
+        "assigned_email": "duckbusiness2024a@gmail.com",
+        "primary_repo": "vault",
+        "capabilities": ["markdown_formatting", "guardian_tagging", "obsidian_sync"],
+        "secret_key_ref": "MICHAELA1"
+      },
+      {
+        "name": "MICHAELA",
+        "role": "The Chronicler",
+        "assistant_id": "MICHAELA",
+        "assigned_email": "duckbusiness2024a@gmail.com",
+        "primary_repo": "dom6027-library",
+        "capabilities": ["markdown_formatting", "guardian_tagging", "library_sync"],
+        "secret_key_ref": "MICHAELA2"
+      },
+      {
+        "name": "EVE",
+        "role": "The Merchant",
+        "assistant_id": "EVE",
+        "assigned_email": "swd.website786@gmail.com",
+        "primary_repo": "soar2024",
+        "capabilities": ["inventory_update", "book_formatting", "shop_api_sync"],
+        "secret_key_ref": "EVE"
+      }
+    ]
+  }
+}
