@@ -11,6 +11,15 @@
         "system_instruction_version": "1.0.0"
       },
       {
+        "name": "HESTER",
+        "role": "The Chronicler",
+        "assistant_id": "MICHAELA",
+        "assigned_email": "shlane1966@gmail.com",
+        "primary_repo": "saphahcentral",
+        "capabilities": ["all"],
+        "secret_key_ref": "HESTER"
+      },
+      {
         "name": "MICHAELA",
         "role": "The Chronicler",
         "assistant_id": "MICHAELA",
