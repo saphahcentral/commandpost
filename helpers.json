@@ -4,6 +4,7 @@
     "active_assistants": [
       {
         "name": "RAFEEK",
+        "role": "The Main Owner",
         "assistant_id": "RAFEEK",
         "assigned_email": "bessingerbackup2024@gmail.com",
         "primary_repo": "saphahcentral",
@@ -12,7 +13,7 @@
       },
       {
         "name": "HESTER",
-        "role": "The Chronicler",
+        "role": "The Co-owner",
         "assistant_id": "HESTER",
         "assigned_email": "shlane1966@gmail.com",
         "primary_repo": "saphahcentral",
@@ -20,8 +21,17 @@
         "secret_key_ref": "HESTER"
       },
       {
+        "name": "HESTER",
+        "role": "The General Author",
+        "assistant_id": "HESTER",
+        "assigned_email": "shlane1966@gmail.com",
+        "primary_repo": "soar2024",
+        "capabilities": ["all"],
+        "secret_key_ref": "HESTER"
+      },
+      {
         "name": "MICHAELA",
-        "role": "The Chronicler",
+        "role": "The Vault Chronicler",
         "assistant_id": "MICHAELA",
         "assigned_email": "duckbusiness2024a@gmail.com",
         "primary_repo": "vault",
@@ -30,7 +40,7 @@
       },
       {
         "name": "MICHAELA",
-        "role": "The Chronicler",
+        "role": "The Library Chronicler",
         "assistant_id": "MICHAELA",
         "assigned_email": "duckbusiness2024a@gmail.com",
         "primary_repo": "dom6027-library",
@@ -39,7 +49,7 @@
       },
       {
         "name": "GABRIEL",
-        "role": "The Ambassodor",
+        "role": "The Ambassador",
         "assistant_id": "GABRIEL",
         "assigned_email": "duckbusiness2024a@gmail.com",
         "primary_repo": "domg6027",
@@ -48,7 +58,7 @@
       },
       {
         "name": "EVE",
-        "role": "The Merchant",
+        "role": "The Assistant Author",
         "assistant_id": "EVE",
         "assigned_email": "swd.website786@gmail.com",
         "primary_repo": "soar2024",
@@ -57,7 +67,7 @@
       },
       {
         "name": "EVE",
-        "role": "The Merchant",
+        "role": "The Support Lady",
         "assistant_id": "EVE",
         "assigned_email": "swd.website786@gmail.com",
         "primary_repo": "scss6027",
