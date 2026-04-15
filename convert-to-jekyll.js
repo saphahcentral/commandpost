@@ -1,4 +1,4 @@
-// convert-to-jekyll.js - master JEKYLL convert service
+// convert-to-jekyll.js - SAFE, ROBUST master JEKYLL convert service
 
 const { execSync } = require("child_process");
 const fs = require("fs");
@@ -7,20 +7,19 @@ const path = require("path");
 const TOKEN = process.env.ELIYAH_SAPHAH;
 const GITHUB_USER = "saphahcentral";
 
-// 🔒 LOAD SAFE REPO LIST
-const repoConfig = JSON.parse(
-  fs.readFileSync(path.join(__dirname, "repos-public.json"), "utf8")
-);
+// 🔒 LOAD REPOS FROM JSON (SINGLE SOURCE OF TRUTH)
+const repoConfigPath = path.join(__dirname, "repos-public.json");
 
-const REPOS = repoConfig.repos;
-
-const WORKDIR = path.join(__dirname, "repos");
-
-if (!fs.existsSync(WORKDIR)) {
-  fs.mkdirSync(WORKDIR);
+if (!fs.existsSync(repoConfigPath)) {
+  console.error("❌ repos-public.json NOT FOUND");
+  process.exit(1);
 }
 
-// ---------- HELPERS ----------
+const REPOS = JSON.parse(fs.readFileSync(repoConfigPath, "utf8")).repos;
+
+const WORKDIR = "/tmp";
+
+// ---------- SAFETY HELPERS ----------
 
 function hasFrontMatter(content) {
   return /^---\s*\n[\s\S]*?\n---\s*\n/.test(content);
@@ -31,7 +30,6 @@ function extractTitle(content) {
   return match ? match[1].replace(/"/g, '\\"').trim() : "Untitled Page";
 }
 
-// 🔥 SKIP root index.html completely
 function isRootIndex(filePath, rootDir) {
   const relative = path.relative(rootDir, filePath).replace(/\\/g, "/");
   return relative.toLowerCase() === "index.html";
@@ -45,14 +43,8 @@ function generatePermalink(filePath, rootDir) {
 function convertFile(filePath, rootDir) {
   let content = fs.readFileSync(filePath, "utf8");
 
-  // ✅ Skip if already converted
   if (hasFrontMatter(content)) return;
-
-  // 🔥 Skip root index
-  if (isRootIndex(filePath, rootDir)) {
-    console.log(`⏩ Skipped root index: ${filePath}`);
-    return;
-  }
+  if (isRootIndex(filePath, rootDir)) return;
 
   const title = extractTitle(content);
   const permalink = generatePermalink(filePath, rootDir);
@@ -69,15 +61,16 @@ title: "${title}"
   frontMatter += `---\n\n`;
 
   fs.writeFileSync(filePath, frontMatter + content, "utf8");
-  console.log(`✅ Converted: ${filePath}`);
 }
+
+// ---------- FILE WALK ----------
 
 function walk(dir, rootDir) {
   const IGNORE = [".git", ".github", "node_modules", "_site"];
 
   const items = fs.readdirSync(dir);
 
-  items.forEach((item) => {
+  for (const item of items) {
     const fullPath = path.join(dir, item);
     const stat = fs.statSync(fullPath);
 
@@ -85,20 +78,19 @@ function walk(dir, rootDir) {
       if (!IGNORE.includes(item)) {
         walk(fullPath, rootDir);
       }
-    } else if (item.toLowerCase().endsWith(".html")) {
+    } else if (item.endsWith(".html")) {
       convertFile(fullPath, rootDir);
     }
-  });
+  }
 }
 
-// ---------- PROCESS REPOS ----------
+// ---------- MAIN LOOP ----------
 
-REPOS.forEach((repo) => {
-  console.log(`\n🚀 Processing: ${repo}`);
+for (const repo of REPOS) {
+  console.log(`\n🚀 PROCESSING: ${repo}`);
 
   const repoPath = path.join(WORKDIR, repo);
 
-  // clean previous clone
   if (fs.existsSync(repoPath)) {
     fs.rmSync(repoPath, { recursive: true, force: true });
   }
@@ -106,29 +98,34 @@ REPOS.forEach((repo) => {
   const cloneUrl = `https://${TOKEN}@github.com/${GITHUB_USER}/${repo}.git`;
 
   try {
-    execSync(`git clone ${cloneUrl}`, { cwd: WORKDIR, stdio: "inherit" });
+    execSync(`git clone ${cloneUrl} ${repoPath}`, { stdio: "inherit" });
 
     walk(repoPath, repoPath);
 
     execSync(`git config user.name "eliyah-bot"`, { cwd: repoPath });
     execSync(`git config user.email "bot@saphahcentral.local"`, { cwd: repoPath });
 
-    execSync(`git add .`, { cwd: repoPath });
+    const status = execSync(`git status --porcelain`, { cwd: repoPath })
+      .toString()
+      .trim();
 
-    try {
-      execSync(
-        `git commit -m "Safe Jekyll conversion (public repos only, dom6027 excluded)"`,
-        { cwd: repoPath }
-      );
-      execSync(`git push`, { cwd: repoPath });
-      console.log(`✅ Updated: ${repo}`);
-    } catch {
-      console.log(`⏩ No changes: ${repo}`);
+    if (!status) {
+      console.log(`⏩ NO CHANGES: ${repo}`);
+      continue;
     }
 
-  } catch (err) {
-    console.error(`❌ Failed: ${repo}`);
-  }
-});
+    execSync(`git add .`, { cwd: repoPath });
+    execSync(`git commit -m "Safe Jekyll conversion (JSON-controlled)"`, {
+      cwd: repoPath
+    });
+    execSync(`git push`, { cwd: repoPath });
 
-console.log("\n🎉 SAFE PUBLIC REPOS PROCESSED.");
+    console.log(`✅ SUCCESS: ${repo}`);
+
+  } catch (err) {
+    console.error(`❌ FAILED: ${repo}`);
+    console.error(err.message);
+  }
+}
+
+console.log("\n🎉 ALL REPOS COMPLETE");
