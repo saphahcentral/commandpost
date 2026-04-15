@@ -1,4 +1,4 @@
-// convert-to-jekyll.js - FINAL HARDENED VERSION (AUTH FIXED + CLEAN OPS)
+// convert-to-jekyll.js - FULL ENFORCEMENT MODE (CLEAN + REBUILD + PUSH)
 
 const { execSync } = require("child_process");
 const fs = require("fs");
@@ -10,7 +10,7 @@ const path = require("path");
 
 const TOKEN = process.env.ELIYAH_SAPHAH;
 const USER = "saphahcentral";
-const WORKDIR = "/tmp";
+const WORKDIR = "/tmp/jekyll-run"; // 🔥 dedicated clean workspace
 
 if (!TOKEN) {
   console.error("❌ Missing ELIYAH_SAPHAH token");
@@ -45,17 +45,25 @@ function run(cmd, cwd) {
 }
 
 // =====================
-// CLONE (FIXED AUTH)
+// CLEAN WORKDIR (CRITICAL)
+// =====================
+
+if (fs.existsSync(WORKDIR)) {
+  fs.rmSync(WORKDIR, { recursive: true, force: true });
+}
+fs.mkdirSync(WORKDIR, { recursive: true });
+
+// =====================
+// CLONE WITH AUTH
 // =====================
 
 function cloneRepo(repo, dir) {
-  const authUrl = `https://${TOKEN}@github.com/${USER}/${repo}.git`;
+  const url = `https://${TOKEN}@github.com/${USER}/${repo}.git`;
 
-  console.log("🔗 Clone URL (token hidden)");
+  console.log("📥 Cloning:", repo);
+  run(`git clone ${url} ${dir}`);
 
-  run(`git clone ${authUrl} ${dir}`);
-
-  // Ensure push also works
+  // enforce auth for push
   run(
     `git remote set-url origin https://${TOKEN}@github.com/${USER}/${repo}.git`,
     dir
@@ -63,26 +71,32 @@ function cloneRepo(repo, dir) {
 }
 
 // =====================
-// FRONT MATTER LOGIC
+// FRONT MATTER BUILDER
 // =====================
 
-function hasFM(content) {
-  return /^---\s*\n[\s\S]*?\n---/m.test(content);
-}
-
-function isIndex(file) {
-  return file.replace(/\\/g, "/").endsWith("index.html");
+function stripFM(content) {
+  return content.replace(/^---\s*\n[\s\S]*?\n---\n?/m, "");
 }
 
 function extractTitle(content) {
   return (content.match(/<title>(.*?)<\/title>/i) || [])[1] || "Untitled";
 }
 
+function buildFM(repo, filePath, content) {
+  const isIndex = filePath.replace(/\\/g, "/").endsWith("index.html");
+
+  if (isIndex) {
+    return `---\nlayout: default\ntitle: "HOME"\npermalink: "/"\ncanonical_url: "https://${USER}.github.io/${repo}/index.html"\n---\n\n`;
+  }
+
+  return `---\nlayout: default\ntitle: "${extractTitle(content)}"\n---\n\n`;
+}
+
 // =====================
-// FILE WALKER
+// WALK + PROCESS ALL HTML
 // =====================
 
-function walk(dir) {
+function walk(repo, dir) {
   const items = fs.readdirSync(dir);
 
   for (const item of items) {
@@ -91,24 +105,25 @@ function walk(dir) {
 
     if (stat.isDirectory()) {
       if (![".git", "node_modules", "_site"].includes(item)) {
-        walk(full);
+        walk(repo, full);
       }
     } else if (item.endsWith(".html")) {
       let content = fs.readFileSync(full, "utf8");
 
-      if (hasFM(content)) continue;
-      if (isIndex(full)) continue;
+      // 🔥 ALWAYS rebuild
+      content = stripFM(content);
 
-      const fm = `---\nlayout: default\ntitle: "${extractTitle(content)}"\n---\n\n`;
+      const fm = buildFM(repo, full, content);
 
       fs.writeFileSync(full, fm + content);
+
       console.log("UPDATED:", full);
     }
   }
 }
 
 // =====================
-// MAIN PROCESS
+// MAIN
 // =====================
 
 for (const repo of repos) {
@@ -117,47 +132,34 @@ for (const repo of repos) {
 
   const dir = path.join(WORKDIR, repo);
 
-  // Clean workspace
-  if (fs.existsSync(dir)) {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
-
   try {
-    // Clone
-    console.log("📥 Cloning...");
+    // Clone fresh every time
     cloneRepo(repo, dir);
 
-    // Skip repos with .nojekyll
-    if (fs.existsSync(path.join(dir, ".nojekyll"))) {
-      console.log("⏭️ SKIPPED (.nojekyll present)");
-      continue;
-    }
-
-    // Convert
-    console.log("🛠️ Converting...");
-    walk(dir);
+    // Convert ALL HTML
+    console.log("🛠️ Converting ALL HTML...");
+    walk(repo, dir);
 
     // Git identity
     run(`git config user.name "eliyah-bot"`, dir);
     run(`git config user.email "bot@saphahcentral.local"`, dir);
 
-    // Stage
+    // Stage everything
     run(`git add .`, dir);
 
-    // Detect changes
     const changes = run(`git status --porcelain`, dir).trim();
 
     if (!changes) {
-      console.log("⚠️ NO CHANGES");
+      console.log("⚠️ NO CHANGES AFTER REBUILD");
       continue;
     }
 
     console.log("📝 Changes detected");
 
     // Commit
-    run(`git commit -m "Jekyll conversion (automated safe pass)"`, dir);
+    run(`git commit -m "Jekyll full enforcement pass (all HTML rebuilt)"`, dir);
 
-    // Push
+    // Push using PAT
     console.log("📤 Pushing...");
     run(`git push origin HEAD`, dir);
 
