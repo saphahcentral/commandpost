@@ -16,7 +16,7 @@ jobs:
         with:
           node-version: "18"
 
-      - name: Run converter (SECURE)
+      - name: Run converter
         env:
           ELIYAH_SAPHAH: ${{ secrets.ELIYAH_SAPHAH }}
         run: node convert-to-jekyll.js
