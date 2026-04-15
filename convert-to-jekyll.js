@@ -1,4 +1,4 @@
-// convert-to-jekyll.js - HARDENED JEKYLL CONVERTER (FIXED AUTH + SAFE OPS)
+// convert-to-jekyll.js - FINAL HARDENED VERSION (AUTH FIXED + CLEAN OPS)
 
 const { execSync } = require("child_process");
 const fs = require("fs");
@@ -25,6 +25,9 @@ const repos = JSON.parse(
   fs.readFileSync(path.join(__dirname, "repos-public.json"), "utf8")
 ).repos;
 
+console.log("TOKEN PRESENT:", !!TOKEN);
+console.log("REPOS COUNT:", repos.length);
+
 // =====================
 // SAFE EXEC
 // =====================
@@ -42,17 +45,17 @@ function run(cmd, cwd) {
 }
 
 // =====================
-// CLONE (AUTH FIXED)
+// CLONE (FIXED AUTH)
 // =====================
 
 function cloneRepo(repo, dir) {
-  const url = `https://github.com/${USER}/${repo}.git`;
+  const authUrl = `https://${TOKEN}@github.com/${USER}/${repo}.git`;
 
-  run(
-    `git -c http.extraHeader="AUTHORIZATION: bearer ${TOKEN}" clone ${url} ${dir}`
-  );
+  console.log("🔗 Clone URL (token hidden)");
 
-  // 🔥 Ensure PUSH also uses token
+  run(`git clone ${authUrl} ${dir}`);
+
+  // Ensure push also works
   run(
     `git remote set-url origin https://${TOKEN}@github.com/${USER}/${repo}.git`,
     dir
@@ -124,24 +127,24 @@ for (const repo of repos) {
     console.log("📥 Cloning...");
     cloneRepo(repo, dir);
 
-    // Skip .nojekyll repos
+    // Skip repos with .nojekyll
     if (fs.existsSync(path.join(dir, ".nojekyll"))) {
       console.log("⏭️ SKIPPED (.nojekyll present)");
       continue;
     }
 
-    // Convert files
+    // Convert
     console.log("🛠️ Converting...");
     walk(dir);
 
-    // Git config
+    // Git identity
     run(`git config user.name "eliyah-bot"`, dir);
     run(`git config user.email "bot@saphahcentral.local"`, dir);
 
     // Stage
     run(`git add .`, dir);
 
-    // Check for changes
+    // Detect changes
     const changes = run(`git status --porcelain`, dir).trim();
 
     if (!changes) {
@@ -152,9 +155,9 @@ for (const repo of repos) {
     console.log("📝 Changes detected");
 
     // Commit
-    run(`git commit -m "Jekyll conversion (safe automated pass)"`, dir);
+    run(`git commit -m "Jekyll conversion (automated safe pass)"`, dir);
 
-    // Push (AUTH WORKS NOW)
+    // Push
     console.log("📤 Pushing...");
     run(`git push origin HEAD`, dir);
 
