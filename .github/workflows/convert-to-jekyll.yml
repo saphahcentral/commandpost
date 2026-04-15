@@ -8,31 +8,18 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1. Checkout COMMANDPOST (no PAT needed)
       - name: Checkout repo
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.ELIYAH_SAPHAPH }}
 
-      - name: Fix git submodule confusion
-        run: |
-          git submodule deinit -f --all || true
-          rm -rf .git/modules || true
-
+      # 2. Setup Node
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "18"
 
-      - name: Run converter
+      # 3. Run converter (PASS SECRET HERE)
+      - name: Run converter script
+        env:
+          ELIYAH_SAPHAH: ${{ secrets.ELIYAH_SAPHAH }}
         run: node convert-to-jekyll.js
-
-      - name: Commit & Push changes
-        run: |
-          git config --global user.name "eliyah-bot"
-          git config --global user.email "bot@saphahcentral.local"
-
-          git add .
-
-          git commit -m "Add Jekyll front matter (safe bulk conversion)" || echo "No changes to commit"
-
-          git push
