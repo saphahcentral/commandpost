@@ -10,7 +10,9 @@ const path = require("path");
 
 const TOKEN = process.env.ELIYAH_SAPHAH;
 const USER = "saphahcentral";
-const WORKDIR = "/tmp/jekyll-run"; // 🔥 dedicated clean workspace
+
+// 🔥 HARD ISOLATION WORKSPACE (NEVER touches repos/ or old tmp state)
+const WORKDIR = "/tmp/jekyll-run";
 
 if (!TOKEN) {
   console.error("❌ Missing ELIYAH_SAPHAH token");
@@ -25,8 +27,8 @@ const repos = JSON.parse(
   fs.readFileSync(path.join(__dirname, "repos-public.json"), "utf8")
 ).repos;
 
-console.log("TOKEN PRESENT:", !!TOKEN);
-console.log("REPOS COUNT:", repos.length);
+console.log("TOKEN OK:", !!TOKEN);
+console.log("REPOS:", repos.length);
 
 // =====================
 // SAFE EXEC
@@ -36,8 +38,7 @@ function run(cmd, cwd) {
   try {
     return execSync(cmd, { cwd, stdio: "pipe" }).toString();
   } catch (e) {
-    console.error("\n❌ COMMAND FAILED:");
-    console.error(cmd);
+    console.error("\n❌ FAILED CMD:", cmd);
     console.error("\nSTDOUT:\n", e.stdout?.toString());
     console.error("\nSTDERR:\n", e.stderr?.toString());
     throw e;
@@ -45,16 +46,18 @@ function run(cmd, cwd) {
 }
 
 // =====================
-// CLEAN WORKDIR (CRITICAL)
+// GLOBAL CLEANUP (CRITICAL FIX)
 // =====================
 
-if (fs.existsSync(WORKDIR)) {
-  fs.rmSync(WORKDIR, { recursive: true, force: true });
+function hardCleanWorkspace() {
+  if (fs.existsSync(WORKDIR)) {
+    fs.rmSync(WORKDIR, { recursive: true, force: true });
+  }
+  fs.mkdirSync(WORKDIR, { recursive: true });
 }
-fs.mkdirSync(WORKDIR, { recursive: true });
 
 // =====================
-// CLONE WITH AUTH
+// CLONE (NO LEGACY REFS)
 // =====================
 
 function cloneRepo(repo, dir) {
@@ -63,22 +66,34 @@ function cloneRepo(repo, dir) {
   console.log("📥 Cloning:", repo);
   run(`git clone ${url} ${dir}`);
 
-  // enforce auth for push
+  // Ensure push auth
   run(
     `git remote set-url origin https://${TOKEN}@github.com/${USER}/${repo}.git`,
     dir
   );
+
+  // 🔥 ELIMINATE SUBMODULE TRIGGERS INSIDE CLONE
+  if (fs.existsSync(path.join(dir, ".gitmodules"))) {
+    console.log("🧹 Removing .gitmodules (safety strip)");
+    fs.rmSync(path.join(dir, ".gitmodules"));
+  }
+
+  // Remove any nested submodule metadata if it exists
+  const gitModulesPath = path.join(dir, ".git", "modules");
+  if (fs.existsSync(gitModulesPath)) {
+    fs.rmSync(gitModulesPath, { recursive: true, force: true });
+  }
 }
 
 // =====================
-// FRONT MATTER BUILDER
+// FRONT MATTER
 // =====================
 
 function stripFM(content) {
   return content.replace(/^---\s*\n[\s\S]*?\n---\n?/m, "");
 }
 
-function extractTitle(content) {
+function title(content) {
   return (content.match(/<title>(.*?)<\/title>/i) || [])[1] || "Untitled";
 }
 
@@ -89,11 +104,11 @@ function buildFM(repo, filePath, content) {
     return `---\nlayout: default\ntitle: "HOME"\npermalink: "/"\ncanonical_url: "https://${USER}.github.io/${repo}/index.html"\n---\n\n`;
   }
 
-  return `---\nlayout: default\ntitle: "${extractTitle(content)}"\n---\n\n`;
+  return `---\nlayout: default\ntitle: "${title(content)}"\n---\n\n`;
 }
 
 // =====================
-// WALK + PROCESS ALL HTML
+// WALK FILES (ALL HTML)
 // =====================
 
 function walk(repo, dir) {
@@ -104,13 +119,11 @@ function walk(repo, dir) {
     const stat = fs.statSync(full);
 
     if (stat.isDirectory()) {
-      if (![".git", "node_modules", "_site"].includes(item)) {
-        walk(repo, full);
-      }
+      if (item === ".git") continue; // IMPORTANT
+      walk(repo, full);
     } else if (item.endsWith(".html")) {
       let content = fs.readFileSync(full, "utf8");
 
-      // 🔥 ALWAYS rebuild
       content = stripFM(content);
 
       const fm = buildFM(repo, full, content);
@@ -126,48 +139,44 @@ function walk(repo, dir) {
 // MAIN
 // =====================
 
-for (const repo of repos) {
-  console.log("\n==============================");
-  console.log("🚀 PROCESSING:", repo);
+(async function main() {
+  hardCleanWorkspace(); // 🔥 GUARANTEED CLEAN START
 
-  const dir = path.join(WORKDIR, repo);
+  for (const repo of repos) {
+    console.log("\n==============================");
+    console.log("🚀 PROCESSING:", repo);
 
-  try {
-    // Clone fresh every time
-    cloneRepo(repo, dir);
+    const dir = path.join(WORKDIR, repo);
 
-    // Convert ALL HTML
-    console.log("🛠️ Converting ALL HTML...");
-    walk(repo, dir);
+    try {
+      cloneRepo(repo, dir);
 
-    // Git identity
-    run(`git config user.name "eliyah-bot"`, dir);
-    run(`git config user.email "bot@saphahcentral.local"`, dir);
+      console.log("🛠️ Converting...");
+      walk(repo, dir);
 
-    // Stage everything
-    run(`git add .`, dir);
+      run(`git config user.name "eliyah-bot"`, dir);
+      run(`git config user.email "bot@saphahcentral.local"`, dir);
 
-    const changes = run(`git status --porcelain`, dir).trim();
+      run(`git add .`, dir);
 
-    if (!changes) {
-      console.log("⚠️ NO CHANGES AFTER REBUILD");
-      continue;
+      const changes = run(`git status --porcelain`, dir).trim();
+
+      if (!changes) {
+        console.log("⚠️ NO CHANGES");
+        continue;
+      }
+
+      run(`git commit -m "Jekyll full rebuild (clean workspace pass)"`, dir);
+
+      console.log("📤 Pushing...");
+      run(`git push origin HEAD`, dir);
+
+      console.log("✅ SUCCESS:", repo);
+
+    } catch (e) {
+      console.error("❌ FAILED:", repo);
     }
-
-    console.log("📝 Changes detected");
-
-    // Commit
-    run(`git commit -m "Jekyll full enforcement pass (all HTML rebuilt)"`, dir);
-
-    // Push using PAT
-    console.log("📤 Pushing...");
-    run(`git push origin HEAD`, dir);
-
-    console.log("✅ SUCCESS:", repo);
-
-  } catch (err) {
-    console.error("❌ FAILED:", repo);
   }
-}
 
-console.log("\n🎉 DONE ALL REPOS");
+  console.log("\n🎉 DONE ALL REPOS");
+})();
