@@ -1,121 +1,168 @@
-// convert-to-jekyll.js - SAFE, ROBUST master JEKYLL convert service
+// convert-to-jekyll.js - HARDENED JEKYLL CONVERTER (FIXED AUTH + SAFE OPS)
 
 const { execSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 
+// =====================
+// CONFIG
+// =====================
+
 const TOKEN = process.env.ELIYAH_SAPHAH;
 const USER = "saphahcentral";
+const WORKDIR = "/tmp";
 
 if (!TOKEN) {
   console.error("❌ Missing ELIYAH_SAPHAH token");
   process.exit(1);
 }
 
-// Load repos
+// =====================
+// LOAD REPOS
+// =====================
+
 const repos = JSON.parse(
   fs.readFileSync(path.join(__dirname, "repos-public.json"), "utf8")
 ).repos;
 
-const WORKDIR = "/tmp";
+// =====================
+// SAFE EXEC
+// =====================
+
+function run(cmd, cwd) {
+  try {
+    return execSync(cmd, { cwd, stdio: "pipe" }).toString();
+  } catch (e) {
+    console.error("\n❌ COMMAND FAILED:");
+    console.error(cmd);
+    console.error("\nSTDOUT:\n", e.stdout?.toString());
+    console.error("\nSTDERR:\n", e.stderr?.toString());
+    throw e;
+  }
+}
 
 // =====================
-// SAFE CLONE (FIXED METHOD)
+// CLONE (AUTH FIXED)
 // =====================
 
 function cloneRepo(repo, dir) {
   const url = `https://github.com/${USER}/${repo}.git`;
 
-  execSync(
-    `git -c http.extraHeader="AUTHORIZATION: bearer ${TOKEN}" clone ${url} ${dir}`,
-    { stdio: "inherit" }
+  run(
+    `git -c http.extraHeader="AUTHORIZATION: bearer ${TOKEN}" clone ${url} ${dir}`
+  );
+
+  // 🔥 Ensure PUSH also uses token
+  run(
+    `git remote set-url origin https://${TOKEN}@github.com/${USER}/${repo}.git`,
+    dir
   );
 }
 
 // =====================
-// FRONT MATTER
+// FRONT MATTER LOGIC
 // =====================
 
-function hasFM(c) {
-  return /^---\s*\n[\s\S]*?\n---/m.test(c);
+function hasFM(content) {
+  return /^---\s*\n[\s\S]*?\n---/m.test(content);
 }
 
-function isIndex(f) {
-  return f.replace(/\\/g, "/").endsWith("index.html");
+function isIndex(file) {
+  return file.replace(/\\/g, "/").endsWith("index.html");
 }
 
-function title(c) {
-  return (c.match(/<title>(.*?)<\/title>/i) || [])[1] || "Untitled";
+function extractTitle(content) {
+  return (content.match(/<title>(.*?)<\/title>/i) || [])[1] || "Untitled";
 }
+
+// =====================
+// FILE WALKER
+// =====================
 
 function walk(dir) {
   const items = fs.readdirSync(dir);
 
-  for (const i of items) {
-    const full = path.join(dir, i);
+  for (const item of items) {
+    const full = path.join(dir, item);
     const stat = fs.statSync(full);
 
     if (stat.isDirectory()) {
-      if (![".git", "node_modules", "_site"].includes(i)) {
+      if (![".git", "node_modules", "_site"].includes(item)) {
         walk(full);
       }
-    } else if (i.endsWith(".html")) {
+    } else if (item.endsWith(".html")) {
       let content = fs.readFileSync(full, "utf8");
 
       if (hasFM(content)) continue;
       if (isIndex(full)) continue;
 
-      fs.writeFileSync(
-        full,
-        `---\nlayout: default\ntitle: "${title(content)}"\n---\n\n` + content
-      );
+      const fm = `---\nlayout: default\ntitle: "${extractTitle(content)}"\n---\n\n`;
+
+      fs.writeFileSync(full, fm + content);
+      console.log("UPDATED:", full);
     }
   }
 }
 
 // =====================
-// MAIN
+// MAIN PROCESS
 // =====================
 
 for (const repo of repos) {
-  console.log("\nPROCESSING:", repo);
+  console.log("\n==============================");
+  console.log("🚀 PROCESSING:", repo);
 
   const dir = path.join(WORKDIR, repo);
 
+  // Clean workspace
   if (fs.existsSync(dir)) {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 
   try {
-    console.log("Cloning:", repo);
+    // Clone
+    console.log("📥 Cloning...");
     cloneRepo(repo, dir);
 
-    console.log("Converting:", repo);
-    walk(dir);
-
-    execSync(`git config user.name "eliyah-bot"`, { cwd: dir });
-    execSync(`git config user.email "bot@saphahcentral.local"`, { cwd: dir });
-
-    execSync(`git add .`, { cwd: dir });
-
-    const changes = execSync(`git status --porcelain`, { cwd: dir })
-      .toString()
-      .trim();
-
-    if (!changes) {
-      console.log("NO CHANGES:", repo);
+    // Skip .nojekyll repos
+    if (fs.existsSync(path.join(dir, ".nojekyll"))) {
+      console.log("⏭️ SKIPPED (.nojekyll present)");
       continue;
     }
 
-    execSync(`git commit -m "Jekyll conversion safe mode"`, { cwd: dir });
-    execSync(`git push`, { cwd: dir });
+    // Convert files
+    console.log("🛠️ Converting...");
+    walk(dir);
 
-    console.log("SUCCESS:", repo);
+    // Git config
+    run(`git config user.name "eliyah-bot"`, dir);
+    run(`git config user.email "bot@saphahcentral.local"`, dir);
 
-  } catch (e) {
-    console.error("FAILED:", repo);
-    console.error(e.message);
+    // Stage
+    run(`git add .`, dir);
+
+    // Check for changes
+    const changes = run(`git status --porcelain`, dir).trim();
+
+    if (!changes) {
+      console.log("⚠️ NO CHANGES");
+      continue;
+    }
+
+    console.log("📝 Changes detected");
+
+    // Commit
+    run(`git commit -m "Jekyll conversion (safe automated pass)"`, dir);
+
+    // Push (AUTH WORKS NOW)
+    console.log("📤 Pushing...");
+    run(`git push origin HEAD`, dir);
+
+    console.log("✅ SUCCESS:", repo);
+
+  } catch (err) {
+    console.error("❌ FAILED:", repo);
   }
 }
 
-console.log("\nDONE ALL REPOS");
+console.log("\n🎉 DONE ALL REPOS");
