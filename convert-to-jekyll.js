@@ -4,22 +4,15 @@ const { execSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 
-// =====================
-// TOKEN SAFETY CHECK
-// =====================
-
 const TOKEN = process.env.ELIYAH_SAPHAH;
 const USER = "saphahcentral";
 
-if (!TOKEN || TOKEN.length < 10) {
-  console.error("❌ TOKEN MISSING OR INVALID");
+if (!TOKEN) {
+  console.error("❌ Missing ELIYAH_SAPHAH token");
   process.exit(1);
 }
 
-// =====================
-// LOAD REPOS
-// =====================
-
+// Load repos
 const repos = JSON.parse(
   fs.readFileSync(path.join(__dirname, "repos-public.json"), "utf8")
 ).repos;
@@ -27,79 +20,65 @@ const repos = JSON.parse(
 const WORKDIR = "/tmp";
 
 // =====================
-// GIT CLONE (ROBUST FIX FOR 128 ERROR)
+// SAFE CLONE (FIXED METHOD)
 // =====================
 
 function cloneRepo(repo, dir) {
-  const url = `https://x-access-token:${TOKEN}@github.com/${USER}/${repo}.git`;
+  const url = `https://github.com/${USER}/${repo}.git`;
 
-  try {
-    execSync(`git clone ${url} ${dir}`, {
-      stdio: "inherit"
-    });
-  } catch (err) {
-    console.error(`❌ CLONE FAILED: ${repo}`);
-    throw err;
-  }
+  execSync(
+    `git -c http.extraHeader="AUTHORIZATION: bearer ${TOKEN}" clone ${url} ${dir}`,
+    { stdio: "inherit" }
+  );
 }
 
 // =====================
-// HTML CONVERSION
+// FRONT MATTER
 // =====================
 
-function hasFrontMatter(content) {
-  return /^---\s*\n[\s\S]*?\n---/m.test(content);
+function hasFM(c) {
+  return /^---\s*\n[\s\S]*?\n---/m.test(c);
 }
 
-function isIndex(file) {
-  return file.replace(/\\/g, "/").endsWith("index.html");
+function isIndex(f) {
+  return f.replace(/\\/g, "/").endsWith("index.html");
 }
 
-function titleFromHTML(content) {
-  const m = content.match(/<title>(.*?)<\/title>/i);
-  return m ? m[1] : "Untitled Page";
+function title(c) {
+  return (c.match(/<title>(.*?)<\/title>/i) || [])[1] || "Untitled";
 }
 
-function walk(dir, root) {
+function walk(dir) {
   const items = fs.readdirSync(dir);
 
-  for (const item of items) {
-    const full = path.join(dir, item);
+  for (const i of items) {
+    const full = path.join(dir, i);
     const stat = fs.statSync(full);
 
     if (stat.isDirectory()) {
-      if (![".git", "node_modules", "_site"].includes(item)) {
-        walk(full, root);
+      if (![".git", "node_modules", "_site"].includes(i)) {
+        walk(full);
       }
-    } else if (item.endsWith(".html")) {
+    } else if (i.endsWith(".html")) {
       let content = fs.readFileSync(full, "utf8");
 
-      if (hasFrontMatter(content)) continue;
+      if (hasFM(content)) continue;
       if (isIndex(full)) continue;
 
-      const title = titleFromHTML(content);
-
-      const fm = `---
-layout: default
-title: "${title}"
----
-
-`;
-
-      fs.writeFileSync(full, fm + content, "utf8");
+      fs.writeFileSync(
+        full,
+        `---\nlayout: default\ntitle: "${title(content)}"\n---\n\n` + content
+      );
     }
   }
 }
 
 // =====================
-// MAIN LOOP
+// MAIN
 // =====================
 
-console.log("\n🚀 STARTING CONVERSION\n");
-
 for (const repo of repos) {
-  console.log("\n==============================");
-  console.log("PROCESSING:", repo);
+  console.log("\nPROCESSING:", repo);
 
   const dir = path.join(WORKDIR, repo);
 
@@ -108,13 +87,12 @@ for (const repo of repos) {
   }
 
   try {
-    console.log("⬇️ Cloning...");
+    console.log("Cloning:", repo);
     cloneRepo(repo, dir);
 
-    console.log("🔄 Converting...");
-    walk(dir, dir);
+    console.log("Converting:", repo);
+    walk(dir);
 
-    console.log("⚙️ Git setup...");
     execSync(`git config user.name "eliyah-bot"`, { cwd: dir });
     execSync(`git config user.email "bot@saphahcentral.local"`, { cwd: dir });
 
@@ -125,19 +103,19 @@ for (const repo of repos) {
       .trim();
 
     if (!changes) {
-      console.log("⏩ NO CHANGES:", repo);
+      console.log("NO CHANGES:", repo);
       continue;
     }
 
-    execSync(`git commit -m "Jekyll conversion (robust)"`, { cwd: dir });
+    execSync(`git commit -m "Jekyll conversion safe mode"`, { cwd: dir });
     execSync(`git push`, { cwd: dir });
 
-    console.log("✅ SUCCESS:", repo);
+    console.log("SUCCESS:", repo);
 
-  } catch (err) {
-    console.error("❌ FAILED:", repo);
-    console.error(err.message);
+  } catch (e) {
+    console.error("FAILED:", repo);
+    console.error(e.message);
   }
 }
 
-console.log("\n🎉 DONE ALL REPOS\n");
+console.log("\nDONE ALL REPOS");
