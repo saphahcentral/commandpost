@@ -3,6 +3,11 @@ name: Jekyll Front Matter Conversion
 on:
   workflow_dispatch:
 
+- name: Fix git submodule confusion
+  run: |
+    git submodule deinit -f --all || true
+    rm -rf .git/modules || true
+
 jobs:
   convert:
     runs-on: ubuntu-latest
