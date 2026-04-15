@@ -5,79 +5,62 @@ const fs = require("fs");
 const path = require("path");
 
 // =====================
-// CONFIG
+// TOKEN SAFETY CHECK
 // =====================
 
 const TOKEN = process.env.ELIYAH_SAPHAH;
 const USER = "saphahcentral";
 
-if (!TOKEN) {
-  console.error("❌ ERROR: Missing ELIYAH_SAPHAH secret");
+if (!TOKEN || TOKEN.length < 10) {
+  console.error("❌ TOKEN MISSING OR INVALID");
   process.exit(1);
 }
 
-// Load repos from JSON (ONLY SOURCE OF TRUTH)
-const REPO_FILE = path.join(__dirname, "repos-public.json");
+// =====================
+// LOAD REPOS
+// =====================
 
-if (!fs.existsSync(REPO_FILE)) {
-  console.error("❌ ERROR: repos-public.json not found");
-  process.exit(1);
-}
-
-const REPOS = JSON.parse(fs.readFileSync(REPO_FILE, "utf8")).repos;
+const repos = JSON.parse(
+  fs.readFileSync(path.join(__dirname, "repos-public.json"), "utf8")
+).repos;
 
 const WORKDIR = "/tmp";
 
 // =====================
-// HELPERS
+// GIT CLONE (ROBUST FIX FOR 128 ERROR)
+// =====================
+
+function cloneRepo(repo, dir) {
+  const url = `https://x-access-token:${TOKEN}@github.com/${USER}/${repo}.git`;
+
+  try {
+    execSync(`git clone ${url} ${dir}`, {
+      stdio: "inherit"
+    });
+  } catch (err) {
+    console.error(`❌ CLONE FAILED: ${repo}`);
+    throw err;
+  }
+}
+
+// =====================
+// HTML CONVERSION
 // =====================
 
 function hasFrontMatter(content) {
-  return /^---\s*\n[\s\S]*?\n---\s*\n/.test(content);
+  return /^---\s*\n[\s\S]*?\n---/m.test(content);
 }
 
-function isRootIndex(filePath, root) {
-  return path.relative(root, filePath).replace(/\\/g, "/").toLowerCase() === "index.html";
+function isIndex(file) {
+  return file.replace(/\\/g, "/").endsWith("index.html");
 }
 
-function extractTitle(content) {
-  const match = content.match(/<title>(.*?)<\/title>/i);
-  return match ? match[1].trim() : "Untitled Page";
+function titleFromHTML(content) {
+  const m = content.match(/<title>(.*?)<\/title>/i);
+  return m ? m[1] : "Untitled Page";
 }
 
-function generateFrontMatter(title) {
-  return `---
-layout: default
-title: "${title}"
----
-
-`;
-}
-
-// =====================
-// FILE CONVERSION
-// =====================
-
-function convertFile(filePath, rootDir) {
-  const content = fs.readFileSync(filePath, "utf8");
-
-  if (hasFrontMatter(content)) return;
-  if (isRootIndex(filePath, rootDir)) return;
-
-  const title = extractTitle(content);
-
-  const updated = generateFrontMatter(title) + content;
-
-  fs.writeFileSync(filePath, updated, "utf8");
-}
-
-// =====================
-// DIRECTORY WALK
-// =====================
-
-function walk(dir, rootDir) {
-  const IGNORE = [".git", ".github", "node_modules", "_site"];
-
+function walk(dir, root) {
   const items = fs.readdirSync(dir);
 
   for (const item of items) {
@@ -85,60 +68,69 @@ function walk(dir, rootDir) {
     const stat = fs.statSync(full);
 
     if (stat.isDirectory()) {
-      if (!IGNORE.includes(item)) {
-        walk(full, rootDir);
+      if (![".git", "node_modules", "_site"].includes(item)) {
+        walk(full, root);
       }
     } else if (item.endsWith(".html")) {
-      convertFile(full, rootDir);
+      let content = fs.readFileSync(full, "utf8");
+
+      if (hasFrontMatter(content)) continue;
+      if (isIndex(full)) continue;
+
+      const title = titleFromHTML(content);
+
+      const fm = `---
+layout: default
+title: "${title}"
+---
+
+`;
+
+      fs.writeFileSync(full, fm + content, "utf8");
     }
   }
 }
 
 // =====================
-// MAIN EXECUTION
+// MAIN LOOP
 // =====================
 
-console.log("\n🚀 STARTING JEKYLL CONVERSION\n");
+console.log("\n🚀 STARTING CONVERSION\n");
 
-for (const repo of REPOS) {
+for (const repo of repos) {
   console.log("\n==============================");
-  console.log("📦 REPO:", repo);
+  console.log("PROCESSING:", repo);
 
-  const repoPath = path.join(WORKDIR, repo);
+  const dir = path.join(WORKDIR, repo);
 
-  if (fs.existsSync(repoPath)) {
-    fs.rmSync(repoPath, { recursive: true, force: true });
+  if (fs.existsSync(dir)) {
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 
-  const cloneUrl = `https://${TOKEN}@github.com/${USER}/${repo}.git`;
-
   try {
-    console.log("⬇️ Cloning repo...");
-    execSync(`git clone ${cloneUrl} ${repoPath}`, { stdio: "inherit" });
+    console.log("⬇️ Cloning...");
+    cloneRepo(repo, dir);
 
-    console.log("🔄 Converting HTML files...");
-    walk(repoPath, repoPath);
+    console.log("🔄 Converting...");
+    walk(dir, dir);
 
-    console.log("⚙️ Configuring git...");
-    execSync(`git config user.name "eliyah-bot"`, { cwd: repoPath });
-    execSync(`git config user.email "bot@saphahcentral.local"`, { cwd: repoPath });
+    console.log("⚙️ Git setup...");
+    execSync(`git config user.name "eliyah-bot"`, { cwd: dir });
+    execSync(`git config user.email "bot@saphahcentral.local"`, { cwd: dir });
 
-    execSync(`git add .`, { cwd: repoPath });
+    execSync(`git add .`, { cwd: dir });
 
-    const status = execSync(`git status --porcelain`, { cwd: repoPath })
+    const changes = execSync(`git status --porcelain`, { cwd: dir })
       .toString()
       .trim();
 
-    if (!status) {
-      console.log("⏩ No changes detected");
+    if (!changes) {
+      console.log("⏩ NO CHANGES:", repo);
       continue;
     }
 
-    console.log("💾 Committing changes...");
-    execSync(`git commit -m "Jekyll front matter conversion"`, { cwd: repoPath });
-
-    console.log("🚀 Pushing changes...");
-    execSync(`git push`, { cwd: repoPath });
+    execSync(`git commit -m "Jekyll conversion (robust)"`, { cwd: dir });
+    execSync(`git push`, { cwd: dir });
 
     console.log("✅ SUCCESS:", repo);
 
@@ -148,4 +140,4 @@ for (const repo of REPOS) {
   }
 }
 
-console.log("\n🎉 ALL REPOSITORIES COMPLETE\n");
+console.log("\n🎉 DONE ALL REPOS\n");
