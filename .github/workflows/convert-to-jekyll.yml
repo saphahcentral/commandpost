@@ -1,0 +1,32 @@
+name: Jekyll Front Matter Conversion
+
+on:
+  workflow_dispatch:
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.ELIYAH_SAPHAH }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+
+      - name: Run converter
+        run: node convert-to-jekyll.js
+
+      - name: Commit & Push changes
+        run: |
+          git config --global user.name "eliyah-bot"
+          git config --global user.email "bot@saphahcentral.local"
+
+          git add .
+          git commit -m "Add Jekyll front matter (safe bulk conversion)" || echo "No changes to commit"
+
+          git push
