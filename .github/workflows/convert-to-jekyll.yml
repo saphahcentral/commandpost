@@ -3,13 +3,26 @@ name: Jekyll Front Matter Conversion
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   convert:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout COMMANDPOST
+      - name: Checkout COMMANDPOST repo
         uses: actions/checkout@v4
+        with:
+          repository: saphahcentral/commandpost
+          path: commandpost
+          token: ${{ secrets.ELIYAH_SAPHAH }}
+
+      - name: Verify files exist
+        run: |
+          ls -la commandpost
+          echo "----"
+          cat commandpost/repos-public.json || echo "Missing repos file"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -17,6 +30,7 @@ jobs:
           node-version: "18"
 
       - name: Run converter
+        working-directory: commandpost
         env:
           ELIYAH_SAPHAH: ${{ secrets.ELIYAH_SAPHAH }}
         run: node convert-to-jekyll.js
