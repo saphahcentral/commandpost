@@ -8,18 +8,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout COMMANDPOST (no PAT needed)
-      - name: Checkout repo
+      - name: Checkout COMMANDPOST
         uses: actions/checkout@v4
 
-      # 2. Setup Node
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "18"
 
-      # 3. Run converter (PASS SECRET HERE)
-      - name: Run converter script
+      - name: Run converter (SECURE)
         env:
           ELIYAH_SAPHAH: ${{ secrets.ELIYAH_SAPHAH }}
         run: node convert-to-jekyll.js
